@@ -1,0 +1,42 @@
+name: Autogreen
+
+on:
+  schedule:
+    # 每天 UTC 01:17（可改成任意分钟，减轻整点任务拥堵）
+    - cron: "17 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autogreen
+  cancel-in-progress: true
+
+jobs:
+  commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bump timestamp
+        run: date -u +"%Y-%m-%dT%H:%M:%SZ" > .autogreen
+
+      - name: Commit and push
+        env:
+          EMAIL: ${{ secrets.AUTOGREEN_EMAIL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${EMAIL:-}" ]; then
+            echo "::error::请在仓库 Settings → Secrets → Actions 中添加 AUTOGREEN_EMAIL，值为你在 GitHub 上已验证的邮箱，否则提交不会计入贡献图。"
+            exit 1
+          fi
+          git config user.name "${{ github.actor }}"
+          git config user.email "$EMAIL"
+          git add .autogreen
+          if git diff --staged --quiet; then
+            echo "No changes."
+            exit 0
+          fi
+          git commit -m "chore: autogreen $(date -u +%Y-%m-%d)"
+          git push
