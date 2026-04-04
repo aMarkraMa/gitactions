@@ -19,10 +19,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Bump timestamp
-        run: date -u +"%Y-%m-%dT%H:%M:%SZ" > .autogreen
-
-      - name: Commit and push
+      # GitHub 贡献图颜色深浅主要由「当天提交次数」决定；随机多次提交 → 随机深浅的绿色
+      - name: Random commits and push
         env:
           EMAIL: ${{ secrets.AUTOGREEN_EMAIL }}
         run: |
@@ -33,10 +31,15 @@ jobs:
           fi
           git config user.name "${{ github.actor }}"
           git config user.email "$EMAIL"
-          git add .autogreen
-          if git diff --staged --quiet; then
-            echo "No changes."
-            exit 0
-          fi
-          git commit -m "chore: autogreen $(date -u +%Y-%m-%d)"
+
+          # 每天 1～20 次提交（bash RANDOM），可按需改范围
+          COMMITS=$((1 + RANDOM % 20))
+          echo "Today's random commit count: $COMMITS"
+
+          : > .autogreen
+          for i in $(seq 1 "$COMMITS"); do
+            printf '%s #%d %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$i" "$(openssl rand -hex 4)" >> .autogreen
+            git add .autogreen
+            git commit -m "chore: autogreen $(date -u +%Y-%m-%d) [$i/$COMMITS]"
+          done
           git push
